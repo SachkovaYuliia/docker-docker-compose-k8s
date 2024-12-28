@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: percona-cluster
+spec:
+  serviceName: percona
+  replicas: 3
+  selector:
+    matchLabels:
+      app: percona
+  template:
+    metadata:
+      labels:
+        app: percona
+    spec:
+      containers:
+        - name: percona
+          image: percona/percona-xtradb-cluster:8.0
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: rootpassword
+            - name: MYSQL_CLUSTER_NAME
+              value: percona-cluster
+          ports:
+            - containerPort: 3306
+              name: mysql
+          volumeMounts:
+            - name: percona-data
+              mountPath: /var/lib/mysql
+        - name: mysql-exporter
+          image: prom/mysqld-exporter
+          ports:
+            - containerPort: 9104
+              name: metrics
+          env:
+            - name: DATA_SOURCE_NAME
+              value: "root:rootpassword@(127.0.0.1:3306)/"
+  volumeClaimTemplates:
+    - metadata:
+        name: percona-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: percona
+spec:
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+  selector:
+    app: percona
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-exporter
+  labels:
+    app: percona
+spec:
+  ports:
+    - name: metrics
+      port: 9104
+      targetPort: 9104
+  selector:
+    app: percona
